@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIMS Attendance — Section D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/face-api.js/0.22.2/face-api.min.js"></script>
+<style>
+  :root{
+    --ink: #12201B;
+    --panel: #1B2B24;
+    --panel-light: #223730;
+    --paper: #EFE8D6;
+    --paper-dim: #D9D0B8;
+    --brass: #C68A3E;
+    --brass-bright: #E0A855;
+    --green-ok: #7FB88A;
+    --red-no: #C4645A;
+    --line: rgba(239,232,214,0.14);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height:100vh;
+    padding: 18px 14px 40px;
+  }
+  .wrap{max-width:520px;margin:0 auto;}
+
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom: 3px solid var(--brass);
+    padding-bottom:14px;
+    margin-bottom:18px;
+  }
+  header h1{
+    font-family:'Roboto Slab', serif;
+    font-weight:700;
+    font-size:1.5rem;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  header .clock{
+    font-size:0.85rem;
+    color:var(--brass-bright);
+  }
+
+  .status-bar{
+    font-size:0.78rem;
+    color:var(--paper-dim);
+    margin-bottom:14px;
+    min-height:1.2em;
+  }
+
+  .tabs{
+    display:flex;
+    gap:2px;
+    margin-bottom:16px;
+    background:var(--panel);
+    border-radius:8px;
+    padding:3px;
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:9px 4px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.8rem;
+    font-weight:500;
+    color:var(--paper-dim);
+    background:none;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .tab.active{
+    background:var(--brass);
+    color:var(--ink);
+    font-weight:600;
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:14px;
+  }
+  .panel h2{
+    font-family:'Roboto Slab', serif;
+    font-size:1rem;
+    margin:0 0 12px;
+    color:var(--brass-bright);
+  }
+
+  video, canvas.overlay{
+    width:100%;
+    border-radius:8px;
+    display:block;
+  }
+  .cam-box{
+    position:relative;
+    background:#000;
+    border-radius:8px;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .cam-box canvas{position:absolute; top:0; left:0;}
+  .cam-box{min-height:200px;}
+  .cam-placeholder{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:var(--paper-dim); font-size:0.8rem; text-align:center; line-height:1.6;
+    font-size:2rem;
+  }
+  .cam-placeholder.hidden{display:none;}
+
+  input[type=text]{
+    width:100%;
+    padding:10px 12px;
+    background:var(--panel-light);
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--paper);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.9rem;
+    margin-bottom:10px;
+  }
+  input[type=text]::placeholder{color:var(--paper-dim);}
+
+  button.action{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:6px;
+    background:var(--brass);
+    color:var(--ink);
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size:0.9rem;
+    cursor:pointer;
+    letter-spacing:0.02em;
+  }
+  button.action:disabled{opacity:0.45; cursor:not-allowed;}
+  button.action.secondary{
+    background:transparent;
+    border:1px solid var(--brass);
+    color:var(--brass-bright);
+  }
+
+  .result-flash{
+    margin-top:12px;
+    padding:12px;
+    border-radius:6px;
+    font-size:0.85rem;
+    display:none;
+  }
+  .result-flash.ok{display:block; background:rgba(127,184,138,0.12); border:1px solid var(--green-ok); color:var(--green-ok);}
+  .result-flash.no{display:block; background:rgba(196,100,90,0.12); border:1px solid var(--red-no); color:var(--red-no);}
+
+  .roster-item, .log-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+    font-size:0.85rem;
+  }
+  .roster-item:last-child, .log-item:last-child{border-bottom:none;}
+  .roster-item .name, .log-item .name{color:var(--paper);}
+  .log-item .time{color:var(--brass-bright); font-size:0.78rem;}
+  .del-btn{
+    background:none;border:none;color:var(--red-no);
+    font-size:0.75rem;cursor:pointer;font-family:'IBM Plex Mono',monospace;
+  }
+
+  .empty{color:var(--paper-dim); font-size:0.82rem; text-align:center; padding:16px 0;}
+
+  .summary-row{display:flex; gap:8px;}
+  .summary-box{
+    flex:1;
+    background:var(--panel-light);
+    border:1px solid var(--line);
+    border-radius:8px;
+    text-align:center;
+    padding:14px 4px;
+  }
+  .summary-num{font-family:'Roboto Slab', serif; font-size:1.6rem; font-weight:700; color:var(--brass-bright);}
+  .summary-label{font-size:0.72rem; color:var(--paper-dim); margin-top:2px;}
+
+  .notice{
+    font-size:0.72rem;
+    color:var(--paper-dim);
+    border-left:2px solid var(--brass);
+    padding:8px 10px;
+    background:var(--panel-light);
+    border-radius:0 6px 6px 0;
+    margin-bottom:16px;
+    line-height:1.5;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>NIMS<br>ATTENDANCE — SEC D</h1>
+    <div class="clock" id="clockNow">--:--:--</div>
+  </header>
+
+  <div class="notice">Yeh sabke liye shared record hai — is device/link ka istemal karne wala koi bhi banda registered chehre aur attendance log dekh sakta hai. Face data sirf is browser tab ki memory mein rehta hai, kahin bheja nahi jaata.</div>
+
+  <div class="status-bar" id="statusBar">Models load ho rahe hain…</div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="scan">Punch In</button>
+    <button class="tab" data-tab="register">Register</button>
+    <button class="tab" data-tab="log">Report</button>
+  </div>
+
+  <!-- SCAN TAB -->
+  <div class="panel" id="tab-scan">
+    <h2>Face Scan Karein</h2>
+    <div class="cam-box">
+      <video id="scanVideo" autoplay muted playsinline></video>
+      <canvas id="scanOverlay"></canvas>
+      <div class="cam-placeholder" id="scanPlaceholder">📷<br>Camera band hai</div>
+    </div>
+    <button class="action" id="scanCamBtn" style="margin-top:12px;">Camera Chalu Karein</button>
+    <button class="action" id="scanBtn" style="margin-top:8px; display:none;" disabled>Scan &amp; Mark Attendance</button>
+    <div class="result-flash" id="scanResult"></div>
+  </div>
+
+  <!-- REGISTER TAB -->
+  <div class="panel" id="tab-register" style="display:none;">
+    <h2>Naya Banda Register Karein</h2>
+    <input type="text" id="regName" placeholder="Poora naam likhein">
+    <div class="cam-box">
+      <video id="regVideo" autoplay muted playsinline></video>
+      <canvas id="regOverlay"></canvas>
+      <div class="cam-placeholder" id="regPlaceholder">📷<br>Camera band hai</div>
+    </div>
+    <button class="action" id="regCamBtn" style="margin-top:12px;">Camera Chalu Karein</button>
+    <button class="action" id="regBtn" style="margin-top:8px; display:none;" disabled>Chehra Capture Karke Register Karein</button>
+    <div class="result-flash" id="regResult"></div>
+  </div>
+  <div class="panel" id="rosterPanel" style="display:none;">
+    <h2>Registered Log (<span id="rosterCount">0</span>)</h2>
+    <div id="rosterList"><div class="empty">Abhi koi register nahi hua</div></div>
+  </div>
+
+  <!-- LOG TAB -->
+  <div class="panel" id="tab-log" style="display:none;">
+    <h2>Aaj Ki Report</h2>
+    <div class="summary-row">
+      <div class="summary-box"><div class="summary-num" id="presentCount">0</div><div class="summary-label">Present</div></div>
+      <div class="summary-box"><div class="summary-num" id="absentCount">0</div><div class="summary-label">Absent</div></div>
+      <div class="summary-box"><div class="summary-num" id="totalCount">0</div><div class="summary-label">Total</div></div>
+    </div>
+    <button class="action secondary" id="refreshLogBtn" style="margin-top:12px;">Refresh</button>
+  </div>
+  <div class="panel" id="tab-log-present" style="display:none;">
+    <h2>Present (<span id="presentListCount">0</span>)</h2>
+    <div id="logList"><div class="empty">Abhi tak koi entry nahi</div></div>
+  </div>
+  <div class="panel" id="tab-log-absent" style="display:none;">
+    <h2>Absent (<span id="absentListCount">0</span>)</h2>
+    <div id="absentList"><div class="empty">Sab present hain</div></div>
+  </div>
+
+</div>
+
+<script>
+const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+let modelsReady = false;
+let roster = []; // {id, name, descriptor: array}
+let attendanceLog = []; // {name, time, dateKey}
+
+const statusBar = document.getElementById('statusBar');
+const clockEl = document.getElementById('clockNow');
+
+function tickClock(){
+  const d = new Date();
+  clockEl.textContent = d.toLocaleTimeString();
+}
+setInterval(tickClock, 1000); tickClock();
+
+function todayKey(){
+  return new Date().toDateString();
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const t = btn.dataset.tab;
+    document.getElementById('tab-scan').style.display = t==='scan' ? 'block':'none';
+    document.getElementById('tab-register').style.display = t==='register' ? 'block':'none';
+    document.getElementById('rosterPanel').style.display = t==='register' ? 'block':'none';
+    document.getElementById('tab-log').style.display = t==='log' ? 'block':'none';
+    document.getElementById('tab-log-present').style.display = t==='log' ? 'block':'none';
+    document.getElementById('tab-log-absent').style.display = t==='log' ? 'block':'none';
+    if(t==='log'){ loadData(); }
+  });
+});
+
+// Auto-refresh report every 5s while on that tab, so multiple phones' entries show up live
+setInterval(()=>{
+  const logTabActive = document.querySelector('.tab[data-tab="log"]').classList.contains('active');
+  if(logTabActive) loadData();
+}, 5000);
+
+// ---------- Camera ----------
+const streams = {};
+async function startStream(videoId, placeholderId, btnId, revealIds){
+  const video = document.getElementById(videoId);
+  const placeholder = document.getElementById(placeholderId);
+  const btn = document.getElementById(btnId);
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    statusBar.textContent = '⚠ Is browser mein camera access support nahi hai. Chrome ya Safari (latest) try karein.';
+    return;
+  }
+  btn.textContent = 'Camera khul raha hai…';
+  btn.disabled = true;
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
+    video.srcObject = stream;
+    await video.play().catch(()=>{});
+    streams[videoId] = stream;
+    placeholder.classList.add('hidden');
+    btn.style.display = 'none';
+    revealIds.forEach(id=> document.getElementById(id).style.display = modelsReady ? 'block' : 'none');
+    statusBar.textContent = modelsReady ? 'Camera on hai — ready.' : 'Camera on hai, face-models abhi load ho rahe hain…';
+  }catch(e){
+    btn.disabled = false;
+    btn.textContent = 'Camera Chalu Karein';
+    if(e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError'){
+      statusBar.textContent = '⚠ Camera permission deny hui hai. Browser ke address-bar ke paas (i) ya lock icon par tap karke camera "Allow" karein, phir dobara button dabayein.';
+    }else if(e.name === 'NotFoundError'){
+      statusBar.textContent = '⚠ Is device par koi camera nahi mila.';
+    }else if(e.name === 'NotReadableError'){
+      statusBar.textContent = '⚠ Camera kisi doosri app mein already use ho raha hai. Woh app band karke dobara try karein.';
+    }else if(location.protocol !== 'https:' && location.hostname !== 'localhost'){
+      statusBar.textContent = '⚠ Camera sirf HTTPS par kaam karta hai. Is page ko HTTPS link se kholein (ya isi Claude chat ke andar wale preview se, download karke nahi).';
+    }else{
+      statusBar.textContent = '⚠ Camera error: ' + (e.message || e.name);
+    }
+  }
+}
+
+document.getElementById('scanCamBtn').addEventListener('click', ()=>{
+  startStream('scanVideo','scanPlaceholder','scanCamBtn',['scanBtn']);
+});
+document.getElementById('regCamBtn').addEventListener('click', ()=>{
+  startStream('regVideo','regPlaceholder','regCamBtn',['regBtn']);
+});
+
+// ---------- Storage helpers (falls back to localStorage if window.storage unavailable) ----------
+const hasCloudStorage = (typeof window.storage !== 'undefined' && window.storage && typeof window.storage.get === 'function');
+async function storageGet(key){
+  if(hasCloudStorage){
+    try{ const r = await window.storage.get(key, true); return r ? r.value : null; }catch(e){ return null; }
+  }
+  return localStorage.getItem(key);
+}
+async function storageSet(key, value){
+  if(hasCloudStorage){
+    try{ await window.storage.set(key, value, true); return; }catch(e){ /* fall through to local */ }
+  }
+  localStorage.setItem(key, value);
+}
+
+async function loadData(){
+  const r = await storageGet('attendance:roster');
+  roster = r ? JSON.parse(r) : [];
+  const l = await storageGet('attendance:log');
+  attendanceLog = l ? JSON.parse(l) : [];
+  renderRoster();
+  renderLog();
+}
+async function saveRoster(){ await storageSet('attendance:roster', JSON.stringify(roster)); }
+async function saveLog(){ await storageSet('attendance:log', JSON.stringify(attendanceLog)); }
+
+// ---------- Render ----------
+function renderRoster(){
+  const list = document.getElementById('rosterList');
+  document.getElementById('rosterCount').textContent = roster.length;
+  if(roster.length===0){ list.innerHTML = '<div class="empty">Abhi koi register nahi hua</div>'; return; }
+  list.innerHTML = roster.map(p=>`
+    <div class="roster-item">
+      <span class="name">${escapeHtml(p.name)}</span>
+      <button class="del-btn" data-id="${p.id}">Remove</button>
+    </div>`).join('');
+  list.querySelectorAll('.del-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      roster = roster.filter(p=>p.id !== b.dataset.id);
+      saveRoster(); renderRoster();
+    });
+  });
+}
+
+function renderLog(){
+  const list = document.getElementById('logList');
+  const absentListEl = document.getElementById('absentList');
+  const today = todayKey();
+  const todays = attendanceLog.filter(e=>e.dateKey===today).sort((a,b)=> new Date(b.time)-new Date(a.time));
+  const presentNames = new Set(todays.map(e=>e.name));
+  const absentees = roster.filter(p=> !presentNames.has(p.name));
+
+  document.getElementById('presentCount').textContent = presentNames.size;
+  document.getElementById('absentCount').textContent = absentees.length;
+  document.getElementById('totalCount').textContent = roster.length;
+  document.getElementById('presentListCount').textContent = presentNames.size;
+  document.getElementById('absentListCount').textContent = absentees.length;
+
+  if(todays.length===0){ list.innerHTML = '<div class="empty">Abhi tak koi entry nahi</div>'; }
+  else{
+    list.innerHTML = todays.map(e=>`
+      <div class="log-item">
+        <span class="name">${escapeHtml(e.name)}</span>
+        <span class="time">${new Date(e.time).toLocaleTimeString()}</span>
+      </div>`).join('');
+  }
+
+  if(absentees.length===0){ absentListEl.innerHTML = '<div class="empty">Sab present hain</div>'; }
+  else{
+    absentListEl.innerHTML = absentees.map(p=>`
+      <div class="log-item"><span class="name">${escapeHtml(p.name)}</span></div>`).join('');
+  }
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- face-api load ----------
+async function loadModels(){
+  try{
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    modelsReady = true;
+    if(streams['scanVideo']){ document.getElementById('scanBtn').style.display='block'; }
+    if(streams['regVideo']){ document.getElementById('regBtn').style.display='block'; }
+    document.getElementById('scanBtn').disabled = false;
+    document.getElementById('regBtn').disabled = false;
+    if(streams['scanVideo'] || streams['regVideo']) statusBar.textContent = 'Ready — scan ya register karein.';
+    else statusBar.textContent = 'Ready — camera chalu karein.';
+  }catch(e){
+    statusBar.textContent = '⚠ Face-recognition models load nahi ho paaye (internet check karein): ' + e.message;
+  }
+}
+
+// ---------- Register ----------
+document.getElementById('regBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('regName').value.trim();
+  const resultEl = document.getElementById('regResult');
+  if(!name){
+    resultEl.className='result-flash no'; resultEl.textContent='Pehle naam likhein.'; return;
+  }
+  if(!modelsReady) return;
+  const video = document.getElementById('regVideo');
+  const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+    .withFaceLandmarks().withFaceDescriptor();
+  if(!detection){
+    resultEl.className='result-flash no'; resultEl.textContent='Chehra clearly detect nahi hua. Camera ke saamne seedha dekhein.'; return;
+  }
+  roster.push({ id: Date.now().toString(36), name, descriptor: Array.from(detection.descriptor) });
+  await saveRoster();
+  renderRoster();
+  document.getElementById('regName').value='';
+  resultEl.className='result-flash ok'; resultEl.textContent = name + ' register ho gaya.';
+});
+
+// ---------- Scan / mark attendance ----------
+document.getElementById('scanBtn').addEventListener('click', async ()=>{
+  const resultEl = document.getElementById('scanResult');
+  if(!modelsReady) return;
+  if(roster.length===0){
+    resultEl.className='result-flash no'; resultEl.textContent='Koi bhi registered nahi hai. Pehle Register tab se add karein.'; return;
+  }
+  const video = document.getElementById('scanVideo');
+  const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+    .withFaceLandmarks().withFaceDescriptor();
+  if(!detection){
+    resultEl.className='result-flash no'; resultEl.textContent='Chehra detect nahi hua. Dobara try karein.'; return;
+  }
+  const labeled = roster.map(p=> new faceapi.LabeledFaceDescriptors(p.name, [new Float32Array(p.descriptor)]));
+  const matcher = new faceapi.FaceMatcher(labeled, 0.5);
+  const best = matcher.findBestMatch(detection.descriptor);
+  if(best.label === 'unknown'){
+    resultEl.className='result-flash no'; resultEl.textContent='Match nahi mila. Pehchana nahi gaya — register hain?'; return;
+  }
+  const today = todayKey();
+  const already = attendanceLog.find(e=> e.name===best.label && e.dateKey===today);
+  if(already){
+    resultEl.className='result-flash ok';
+    resultEl.textContent = best.label + ' — aaj pehle hi (' + new Date(already.time).toLocaleTimeString() + ') mark ho chuka hai.';
+    return;
+  }
+  attendanceLog.push({ name: best.label, time: new Date().toISOString(), dateKey: today });
+  await saveLog();
+  renderLog();
+  resultEl.className='result-flash ok';
+  resultEl.textContent = best.label + ' — attendance mark ho gayi (' + new Date().toLocaleTimeString() + ').';
+});
+
+document.getElementById('refreshLogBtn').addEventListener('click', loadData);
+
+// ---------- Boot ----------
+window.addEventListener('load', async ()=>{
+  statusBar.textContent = hasCloudStorage ? 'Data sync ho raha hai…' : 'Local mode (is device tak simit) — models load ho rahe hain…';
+  await loadData();
+  loadModels();
+});
+</script>
+</body>
+</html>
